@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:shop_now/data/categories.dart';
 import 'package:shop_now/models/category.dart';
+// import 'package:shop_now/models/grocery_item.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class NewFormScreen extends StatefulWidget {
   const NewFormScreen({super.key});
@@ -13,14 +16,30 @@ class NewFormScreen extends StatefulWidget {
 class _NewFormScreen extends State<NewFormScreen> {
   final _formkey = GlobalKey<FormState>();
   String _enteredName = '';
-  int _enteredQuantity = 1;
-  // var dropItem= categories[Categories.vegetables];
+  String _enteredQuantity = '1';
+  var _selectedCategory = categories[Categories.vegetables];
 
-  
-  void _saveData() {
+  void _saveData() async {
     if (_formkey.currentState!.validate()) {
       _formkey.currentState!.save();
-      print(_enteredQuantity);
+      final url = Uri.https(
+          'shopnow-36c43-default-rtdb.firebaseio.com','shopping-list.json');
+    final response=await  http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'category': _selectedCategory!.products,
+          'name': _enteredName,
+          'quantity': _enteredQuantity
+        }),
+      );
+      if(!context.mounted){
+        return;
+      }
+      print(response.body);
+      print(response.statusCode);
+      Navigator.of(context).pop();
+     
     }
   }
 
@@ -52,14 +71,15 @@ class _NewFormScreen extends State<NewFormScreen> {
                       return null;
                     }
                   },
-                  onSaved: (newValue) => _enteredName=newValue!,
+                  onSaved: (newValue) => _enteredName = newValue!,
                 ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Expanded(
                       child: TextFormField(
-                        initialValue: _enteredQuantity.toString(),
+                        initialValue: _enteredQuantity,
+                        keyboardType: TextInputType.number,
                         decoration: const InputDecoration(
                           label: Text('quantity'),
                         ),
@@ -73,32 +93,35 @@ class _NewFormScreen extends State<NewFormScreen> {
                             return null;
                           }
                         },
-                        onSaved: (newValue) =>
-                            _enteredQuantity = int.parse(newValue!),
+                        onSaved: (newValue) => _enteredQuantity = newValue!,
                       ),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: DropdownButtonFormField(
-                        
-                        items: [
-                        for (final category in categories.entries)//for looping the maps on dart we use entries
-                          DropdownMenuItem(
-                              value: categories.values,
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 16,
-                                    height: 16,
-                                    color: category.value.color,
-                                  ),
-                                  const SizedBox(
-                                    width: 5,
-                                  ),
-                                  Text(category.value.products)
-                                ],
-                              ))
-                      ], onChanged: (value) {}),
+                          value: _selectedCategory,
+                          items: [
+                            for (final category in categories
+                                .entries) //for looping the maps on dart we use entries
+                              DropdownMenuItem(
+                                  value: category.value,
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 16,
+                                        height: 16,
+                                        color: category.value.color,
+                                      ),
+                                      const SizedBox(
+                                        width: 5,
+                                      ),
+                                      Text(category.value.products)
+                                    ],
+                                  ))
+                          ],
+                          onChanged: (value) {
+                            _selectedCategory = value;
+                          }),
                     )
                   ],
                 ),
