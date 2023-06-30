@@ -1,9 +1,13 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:shop_now/data/categories.dart';
 import 'package:shop_now/models/category.dart';
-// import 'package:shop_now/models/grocery_item.dart';
+
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+
+import 'package:shop_now/models/grocery_item.dart';
 
 class NewFormScreen extends StatefulWidget {
   const NewFormScreen({super.key});
@@ -18,28 +22,48 @@ class _NewFormScreen extends State<NewFormScreen> {
   String _enteredName = '';
   String _enteredQuantity = '1';
   var _selectedCategory = categories[Categories.vegetables];
+  bool _setData = false;
 
   void _saveData() async {
     if (_formkey.currentState!.validate()) {
       _formkey.currentState!.save();
+      setState(() {
+        _setData = true;
+      });
       final url = Uri.https(
-          'shopnow-36c43-default-rtdb.firebaseio.com','shopping-list.json');
-    final response=await  http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
-          'category': _selectedCategory!.products,
-          'name': _enteredName,
-          'quantity': _enteredQuantity
-        }),
-      );
-      if(!context.mounted){
-        return;
+          'shopnow-36c43-default-rtdb.firebaseio.com', 'shopping-list.json');
+      try {
+        final response = await http.post(
+          url,
+          headers: {'Content-Type': 'application/json'},
+          body: json.encode({
+            'category': _selectedCategory!.products,
+            'name': _enteredName,
+            'quantity': _enteredQuantity
+          }),
+        );
+
+        if (!context.mounted) {
+          return;
+        }
+        log('***************************');
+        print(response.body);
+        final resData = json.decode(response.body);
+
+        Navigator.of(context).pop(GroceryItem(
+            category: _selectedCategory!,
+            id: resData['name'],
+            name: _enteredName,
+            quantity: int.parse(_enteredQuantity)));
+      } catch (error) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Sorry!!!!!!!!!'),
+          duration: Duration(milliseconds: 300),
+        ));
+        setState(() {
+          _setData=false;
+        });
       }
-      print(response.body);
-      print(response.statusCode);
-      Navigator.of(context).pop();
-     
     }
   }
 
@@ -132,15 +156,24 @@ class _NewFormScreen extends State<NewFormScreen> {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton(
-                      onPressed: () {
-                        _formkey.currentState!.reset();
-                      },
+                      onPressed: _setData
+                          ? null
+                          : () {
+                              _formkey.currentState!.reset();
+                            },
                       child: const Text('Reset'),
                     ),
                     const SizedBox(width: 8),
                     ElevatedButton(
-                      onPressed: _saveData,
-                      child: const Text('Add item'),
+                      onPressed: _setData ? null : _saveData,
+                      child: _setData
+                          ? const SizedBox(
+                              height: 16,
+                              width: 16,
+                              child:
+                                  CircularProgressIndicator(color: Colors.red),
+                            )
+                          : const Text('Add item'),
                     )
                   ],
                 )
