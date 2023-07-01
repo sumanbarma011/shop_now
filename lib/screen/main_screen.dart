@@ -16,54 +16,46 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  String? errorText;
+  
   List<GroceryItem> _newGrocery = [];
-  bool _loadingData = true;
+
+  late Future<List<GroceryItem>> _loadedItems;
+
   @override
   void initState() {
-    responseItem();
+    _loadedItems = responseItem();
 
     super.initState();
   }
 
-  void responseItem() async {
+  Future<List<GroceryItem>> responseItem() async {
     final url = Uri.https(
         'shopnow-36c43-default-rtdb.firebaseio.com', 'shopping-list.json');
 
-    try {
-      final response = await http.get(url);
-      print(response.body);
-
-      if (response.body == 'null') {
-        setState(() {
-          _loadingData = false;
-        });
-
-        return; // all the overall code of this function is skipped
-      }
-      final List<GroceryItem> loadedItem = [];
-
-      final Map<String, dynamic> listData = json.decode(response.body);
-      for (var item in listData.entries) {
-        final belongCategory = categories.entries
-            .firstWhere(
-                (element) => element.value.products == item.value['category'])
-            .value;
-        loadedItem.add(GroceryItem(
-            category: belongCategory,
-            id: item.key,
-            name: item.value['name'],
-            quantity: int.parse(item.value['quantity'])));
-      }
-      setState(() {
-        _loadingData = false;
-        _newGrocery = loadedItem;
-      });
-    } catch (error) {
-      setState(() {
-        errorText = "Something went wrong. Please Try Later................";
-      });
+    final response = await http.get(url);
+    print(response.body);
+    if (response.statusCode >= 400) {
+      throw Exception("Failed to fetch the data ");
     }
+
+    if (response.body == 'null') {
+      return []; // all the overall code of this function is skipped
+    }
+    final List<GroceryItem> loadedItem = [];
+
+    final Map<String, dynamic> listData = json.decode(response.body);
+    for (var item in listData.entries) {
+      final belongCategory = categories.entries
+          .firstWhere(
+              (element) => element.value.products == item.value['category'])
+          .value;
+      loadedItem.add(GroceryItem(
+          category: belongCategory,
+          id: item.key,
+          name: item.value['name'],
+          quantity: int.parse(item.value['quantity'])));
+    }
+    return loadedItem;
   }
 
 //--------------------------- Function of the icon add button ----------------------------------------//
@@ -110,55 +102,56 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    Widget content = const Center(
-      child: Text('No items left behind'),
-    );
-    if (_loadingData) {
-      content = const Center(
-        child: CircularProgressIndicator(color: Colors.red),
-      );
-    }
-    if (_newGrocery.isNotEmpty) {
-      content = ListView.builder(
-          itemCount: _newGrocery.length,
+    
+
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'Your Groceries',
+          style: Theme.of(context).textTheme.headlineSmall,
+        ),
+        actions: [IconButton(onPressed: _addText, icon: const Icon(Icons.add))],
+      ),
+      body: FutureBuilder(
+        future: _loadedItems,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+              child: CircularProgressIndicator(color: Colors.red),
+            );
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                snapshot.error.toString(),
+              ),
+            );
+          }
+          if (snapshot.data!.isEmpty) {
+            return const Center(
+              child: Text('No items left behind'),
+            );
+          }
+          return ListView.builder(
+          itemCount: snapshot.data!.length,
           itemBuilder: (context, index) => Dismissible(
-                onDismissed: (direction) => removeItem(_newGrocery[index]),
-                key: ValueKey(_newGrocery[index].name),
+                onDismissed: (direction) => removeItem(snapshot.data![index]),
+                key: ValueKey(snapshot.data![index].name),
                 child: ListTile(
                   leading: Container(
                     width: 24,
                     height: 24,
-                    color: _newGrocery[index].category.color,
+                    color: snapshot.data![index].category.color,
                   ),
                   title: Text(
-                    _newGrocery[index].name,
+                    snapshot.data![index].name,
                   ),
-                  trailing: Text('${_newGrocery[index].quantity}'),
+                  trailing: Text('${snapshot.data![index].quantity}'),
                 ),
               ));
-    }
-    if (errorText != null) {
-      content = Center(
-        child: Text(errorText!),
-      );
-    }
-
-    return Scaffold(
-        appBar: AppBar(
-          title: Text(
-            'Your Groceries',
-            style: Theme.of(context).textTheme.headlineSmall,
-          ),
-          actions: [
-            IconButton(onPressed: _addText, icon: const Icon(Icons.add))
-          ],
-        ),
-        body: SafeArea(
-          child: SizedBox(
-            height: 200,
-            width: double.infinity,
-            child: content,
-          ),
-        ));
+        },
+      ),
+    );
   }
 }
